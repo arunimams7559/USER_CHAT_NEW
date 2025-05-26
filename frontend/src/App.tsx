@@ -1,31 +1,23 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import './App.css';
-import LoginPage from './components/pages/login';
-import SignupPage from './components/pages/signup';
-import SideBar from './components/pages/sidebar';
-import UserList from './components/pages/userlist';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
+import Login from './components/pages/login';
+import Signup from './components/pages/signup';
+import ChatPage from './components/pages/chatpage';
 import { UserProvider } from './components/context/usercontext';
 
-function App() {
+const App: React.FC = () => {
   return (
-    <BrowserRouter>
-      <UserProvider>
-        <div className="App">
-          <Routes>
-            <Route path="/" element={<Navigate to="/login" />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignupPage />} />
-            <Route path="/sidebar" element={<SideBar />} />
-            <Route path="/userlist"element={<UserList onSelect={(user) => console.log('Selected user:', user)} />}
-/>
-
-          </Routes>
-        </div>
-      </UserProvider>
-    </BrowserRouter>
+    <UserProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/chat" element={<ChatPage />} />
+        </Routes>
+      </Router>
+    </UserProvider>
   );
-}
+};
 
 export default App;

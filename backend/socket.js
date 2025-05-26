@@ -1,105 +1,72 @@
-const Message = require('./models/chatmodel');
+const socketIo = require('socket.io');
 const User = require('./models/usermodel');
 
-const setupSocket = (io) => {
-  const connectedUsers = new Map();
+const connectedUsers = new Map(); 
+
+const initSocket = (server) => {
+  const io = socketIo(server, {
+    cors: {
+      origin: 'http://localhost:3000',
+      methods: ['GET', 'POST']
+    }
+  });
 
   io.on('connection', (socket) => {
-    console.log('User connected', socket.id);
+    console.log('A user connected:', socket.id);
 
   
-    User.find()
-      .then((users) => {
-        socket.emit('userList', users);
-      })
-      .catch((err) => {
-        console.error('Error in fetching users:', err);
-      });
-
-    socket.on('register', async (userData) => {
-      console.log('User registered:', userData);
-
-      // Store the user's ID or username for later reference
-      socket.userId = userData.username;
-      connectedUsers.set(userData.username, socket.id);
-
-      // Update the user's online status
+    socket.on('user_connected', async (userId) => {
+      if (!userId) return;
+      
       try {
-        const user = await User.findOne({ username: userData.username });
-        if (user) {
-          await User.updateOne({ _id: user._id }, { isOnline: true });
-
-          // Broadcast updated user list to all clients
-          const allUsers = await User.find();
-          io.emit('userList', allUsers);
-        }
-      } catch (err) {
-        console.error('Error updating user status:', err);
-      }
-    });
-
-    // Handle message sending
-    socket.on('sendMessage', async (messageData) => {
-      console.log('Message received:', messageData);
-
-      try {
-        const { sender, receiver, text, timestamp } = messageData;
-
-        // Validate message data
-        if (!sender || !receiver || !text) {
-          console.error('Invalid message data:', messageData);
-          return;
-        }
-
-        // Save the message to the database
-        const message = await Message.create({
-          sender,
-          receiver,
-          text,
-          timestamp: timestamp || new Date().toISOString()
+       
+        await User.findByIdAndUpdate(userId, { 
+          isOnline: true,
+          lastActive: new Date()
         });
-
-        console.log('Message saved to database:', message);
-
-        // Get receiver's socket ID
-        const receiverSocketId = connectedUsers.get(receiver);
-
-        // Emit the message to the receiver
-        if (receiverSocketId) {
-          console.log(`Emitting message to receiver ${receiver} with socket ID ${receiverSocketId}`);
-          io.to(receiverSocketId).emit('receiveMessage', message);
-        } else {
-          console.log(`Receiver ${receiver} is not connected, message will be delivered when they connect`);
-        }
-
-        // Emit back to sender to confirm delivery
-        console.log(`Emitting confirmation to sender with socket ID ${socket.id}`);
-        io.to(socket.id).emit('receiveMessage', message);
+        
+    
+        connectedUsers.set(userId, socket.id);
+        socket.userId = userId;
+       
+        io.emit('user_status_change', { userId, isOnline: true });
+        
+        console.log(`User ${userId} is now online`);
       } catch (err) {
-        console.error('Error handling message:', err);
-        // Notify sender of the error
-        socket.emit('messageError', { error: 'Failed to send message' });
+        console.error('Error updating user online status:', err);
       }
     });
 
-    // Handle disconnection
+    socket.on('chat message', (msg) => {
+      console.log('Message received:', msg);
+      io.emit('chat message', msg);
+    });
+
     socket.on('disconnect', async () => {
-      console.log(`User disconnected: ${socket.id}`);
-      try {
-        if (socket.userId) {
-          const user = await User.findOne({ username: socket.userId });
-          if (user) {
-            await User.updateOne({ _id: user._id }, { isOnline: false });
-            connectedUsers.delete(socket.userId);
-            const allUsers = await User.find();
-            io.emit('userList', allUsers);
-          }
+      console.log('A user disconnected:', socket.id);
+      
+
+      if (socket.userId) {
+        try {
+        
+          await User.findByIdAndUpdate(socket.userId, { 
+            isOnline: false,
+            lastActive: new Date()
+          });
+          
+        
+          connectedUsers.delete(socket.userId);
+          
+         
+          io.emit('user_status_change', { userId: socket.userId, isOnline: false });
+          
+          console.log(`User ${socket.userId} is now offline`);
+        } catch (err) {
+          console.error('Error updating user offline status:', err);
         }
-      } catch (err) {
-        console.error(`Error in disconnect event: ${err.message}`);
       }
     });
   });
 };
 
-module.exports = { setupSocket };
+module.exports = initSocket;

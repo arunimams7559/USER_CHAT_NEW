@@ -1,90 +1,82 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useNavigate, Link } from 'react-router-dom'; 
 import '../style/signup.css';
 
-const SignupPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [username, setUsername] = useState('');
+const Signup: React.FC = () => {
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [error, setError] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const navigate = useNavigate();
 
-  const handleSignup = async () => {
-   
-    if (!username || !email || !password || !confirm) {
-      setError('Please fill in all fields.');
-      return;
-    }
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-    if (password !== confirm) {
-      setError('Passwords do not match.');
+    if (password !== confirmPassword) {
+      alert('Passwords do not match.');
       return;
     }
 
     try {
-      
-      const response = await axios.post('http://localhost:8000/auth/register', {
-        username,
+      await axios.post('http://localhost:5000/api/auth/signup', {
         email,
-        password,
+        username,
+        password
       });
 
-      console.log('Signup successful:', response.data);
-
-      navigate('/login');
-    } catch (err) {
-      console.error('Signup error:', err);
-      setError('Signup failed. Try again.');
+      alert('Signup successful! Please log in.');
+      navigate('/');
+    } catch (error) {
+      console.error('Signup error:', error);
+      alert('Signup failed. Please try again.');
     }
   };
-
   return (
     <div className="signup-container">
-      <h1>ChatApp</h1>
-      <h2>Sign Up</h2>
+      <div className="chatapp-app-name">
+        <span className="chatapp-logo">💬</span>
+        <h1>ChatWave</h1>
+      </div>
+      <form onSubmit={handleSignup}>
+        <h2>Signup</h2>
+        <input
+          type="text"
+          placeholder="Username"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+          required
+        />
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          required
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          required
+        />
+        <input 
+          type="password"
+          placeholder="Confirm Password"
+          value={confirmPassword}
+          onChange={e => setConfirmPassword(e.target.value)}
+          required
+        />
+        <button type="submit">Sign Up</button>
 
-      {error && <p className="error">{error}</p>}
-
-      <input
-        type="text"
-        placeholder="Username"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-      />
-
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
-
-      <input
-        type="password"
-        placeholder="Confirm Password"
-        value={confirm}
-        onChange={(e) => setConfirm(e.target.value)}
-      />
-
-      <button onClick={handleSignup}>Sign Up</button>
-
-      <p>
-        Already have an account?{' '}
-        <span onClick={() => navigate('/login')} >
-          Log in
-        </span>
-      </p>
+        <p>
+          Already have an account?{' '}
+          <Link to="/">Login here</Link>
+        </p>
+      </form>
     </div>
   );
 };
 
-export default SignupPage;
+export default Signup;

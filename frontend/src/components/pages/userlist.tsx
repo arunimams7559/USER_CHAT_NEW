@@ -1,94 +1,122 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import '../style/userlist.css';
+import { useUser } from '../context/usercontext';
 
 interface User {
-  _id?: string;
-  id?: string;
+  _id: string;
   username: string;
-  email: string;
-  avatar?: string;
   isOnline?: boolean;
+  avatar?: string;
 }
 
-interface Props {
-  onSelect: (user: User) => void;
+interface UserListProps {
+  onSelectUser: (user: User) => void;
+  selectedUser: User | null;
 }
 
-const UserList: React.FC<Props> = ({ onSelect }) => {
+const UserList: React.FC<UserListProps> = ({ onSelectUser, selectedUser }) => {
+  const { user } = useUser();
   const [users, setUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await axios.get(`http://localhost:5001/auth/users`);
-        setUsers(response.data);
-      } catch (err) {
+    if (!user) return;
+
+    setLoading(true);
+    axios.get(`http://localhost:5000/api/userauth/users?exclude=${user._id}`)
+      .then((res) => {
+        setUsers(res.data.users);
+        setLoading(false);
+      })
+      .catch((err) => {
         console.error('Failed to fetch users:', err);
-      }
+        setLoading(false);
+      });
+  }, [user]);
+
+  useEffect(() => {
+    const socket = (window as any).socket;
+
+    if (!socket) return;
+
+    const handleUserStatusChange = (data: { userId: string; isOnline: boolean }) => {
+      setUsers(prevUsers =>
+        prevUsers.map(u =>
+          u._id === data.userId
+            ? { ...u, isOnline: data.isOnline }
+            : u
+        )
+      );
     };
 
-    fetchUsers();
-    
-  
-    const interval = setInterval(fetchUsers, 30000);
-    
-    return () => clearInterval(interval);
+    socket.on('user_status_change', handleUserStatusChange);
+
+    return () => {
+      socket.off('user_status_change', handleUserStatusChange);
+    };
   }, []);
-    const handleSelectUser = (user: User) => {
-    setSelectedUserId(user._id || user.id || null);
-    onSelect(user);
-  };
-  
-  const filteredUsers = searchTerm 
-    ? users.filter(user => 
-        user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase())
-      ) 
-    : users;
+
+  const filteredUsers = users.filter((u) =>
+    u.username.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="user-list">
-      <div className="user-list-header">
+    <div className="chatapp-user-list-container">
+      <div className="chatapp-user-list-header">
         <h3>Contacts</h3>
-        <div className="search-container">
-          <input 
-            type="text" 
-            placeholder="Search users..." 
+        <div className="chatapp-user-search-container">
+          <svg className="chatapp-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            type="text"
+            placeholder="Search"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
+            className="chatapp-user-search"
           />
         </div>
       </div>
-      
-      {filteredUsers.length === 0 && (
-        <div className="empty-list">
-          <p>No users found</p>
-        </div>
-      )}
-      
-      {filteredUsers.map((user, index) => (
-        <div 
-          className={`user-item ${(user._id || user.id) === selectedUserId ? 'active' : ''}`} 
-          key={user._id || index} 
-          onClick={() => handleSelectUser(user)}
-        >
-          <div className="user-avatar">           
-             <img 
-              src={user.avatar || 'https://avatar.iran.liara.run/public/boy'} 
-              alt="avatar" 
-              className="avatar small" 
-            />
-            {user.isOnline && <span className="online-indicator"></span>}
+      <ul className="chatapp-user-list">
+        {loading ? (
+          <div className="chatapp-user-list-loading">
+            <div className="chatapp-loading-spinner"></div>
+            <p>Loading contacts...</p>
           </div>
-          <div className="user-info">
-            <strong>{user.username}</strong>
-            <p>{user.email}</p>
+        ) : filteredUsers.length === 0 ? (
+          <div className="chatapp-no-users-found">
+            {searchTerm ?
+              <p>No users matching "{searchTerm}"</p> :
+              <p>No other users available</p>
+            }
           </div>
-        </div>
-      ))}
+        ) : (
+          
+          <div className="chatapp-users-list">
+            {filteredUsers.map((u) => (
+              <div
+                key={u._id}
+                className={`chatapp-user-item${selectedUser?._id === u._id ? ' active' : ''}`}
+                onClick={() => onSelectUser(u)}
+              >
+                <div className="chatapp-user-avatar">
+                  <img src={u.avatar || 'https://avatar.iran.liara.run/public/boy'} alt={u.username} />
+                  <span className={`chatapp-status-indicator ${u.isOnline ? 'online' : 'offline'}`}></span>
+                </div>
+                <div className="chatapp-user-details">
+                  <h3 className="chatapp-user-name">{u.username}</h3>
+                  <span className={`chatapp-status-text ${u.isOnline ? 'online' : 'offline'}`}>
+                    {u.isOnline ? 'Online' : 'Offline'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </ul>
     </div>
   );
 };
